@@ -78,6 +78,7 @@ export interface ChatRequest {
   profileId: string;
   message: string;
   responseMode?: "text" | "voice";
+  conversationId?: string;
 }
 
 export interface ChatResponse {
@@ -86,5 +87,7 @@ export interface ChatResponse {
   report: CreditHealthReport;
   meta: {
     usedBedrock: boolean;
+    conversationId: string;
+    profileContextIncluded: boolean;
   };
 }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Credit Coach",
+  title: "Wow an AI Financial Agent I've never seen that before",
   description: "Voice + text credit health coaching with Bedrock + Datadog"
 };
 

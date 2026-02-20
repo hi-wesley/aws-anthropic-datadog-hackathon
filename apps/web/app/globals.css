@@ -11,6 +11,7 @@
   --danger: #dc2626;
   --radius: 16px;
   --font-stack: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  --right-pane-width: 320px;
 }
 
 * {
@@ -32,12 +33,14 @@ body {
 main {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 6px 24px 24px;
 }
 
 .page-shell {
   display: grid;
-  gap: 16px;
+  gap: 4px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: calc(100dvh + 50px);
 }
 
 .panel {
@@ -49,15 +52,16 @@ main {
 }
 
 .top-bar {
-  padding: 14px 18px;
+  padding: 6px 10px;
 }
 
 .top-bar-label {
   max-width: none;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   white-space: nowrap;
+  line-height: 1.1;
 }
 
 .top-bar-label span {
@@ -67,13 +71,18 @@ main {
 .top-bar-label select {
   min-width: 320px;
   max-width: 460px;
+  padding: 4px 10px;
+  height: 32px;
+  border-radius: 10px;
 }
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 3fr 1fr;
+  grid-template-columns: minmax(0, 1fr) var(--right-pane-width);
   gap: 16px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+  overflow: hidden;
 }
 
 label {
@@ -133,6 +142,9 @@ button:disabled {
 .profile-card h2 {
   margin: 0 0 6px;
   font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-card p {
@@ -144,6 +156,10 @@ button:disabled {
 .score-pane {
   display: grid;
   gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .score-overview {
@@ -311,15 +327,24 @@ button:disabled {
 }
 
 .side-pane {
-  align-self: start;
-  display: grid;
-  gap: 12px;
-  align-content: start;
+  display: flex;
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+  width: var(--right-pane-width);
+  min-width: var(--right-pane-width);
+  max-width: var(--right-pane-width);
+  overflow: hidden;
 }
 
 .ai-chat {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .ai-chat h2 {
@@ -350,11 +375,20 @@ button:disabled {
 
 .chat-log {
   margin-top: 2px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  flex: 1;
   gap: 8px;
-  max-height: 220px;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
+  width: 100%;
+}
+
+.composer textarea {
+  resize: none;
 }
 
 .monitor-stack {
@@ -446,6 +480,14 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 10px 12px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .bubble.user {
@@ -454,6 +496,14 @@ button:disabled {
 
 .bubble.assistant {
   background: #eef4ff;
+}
+
+.placeholder-bubble {
+  background: #fff;
+}
+
+.placeholder-bubble p {
+  color: var(--muted);
 }
 
 .role {
@@ -487,8 +537,23 @@ button:disabled {
 }
 
 @media (max-width: 960px) {
+  .page-shell {
+    height: auto;
+    min-height: 100dvh;
+  }
+
   .layout-grid {
     grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .side-pane {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    min-width: 0;
+    max-width: none;
   }
 
   .top-bar-label {
@@ -504,6 +569,16 @@ button:disabled {
 
   .score-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .score-pane {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .ai-chat {
+    height: auto;
   }
 
   .brief-row {

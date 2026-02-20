@@ -2,25 +2,31 @@ import type { CreditHealthReport, CreditProfile } from "@credit-coach/shared-typ
 
 export function buildAdvisorSystemPrompt(): string {
   return [
-    "You are a credit education coach.",
+    "You are a credit coach.",
     "Give practical, non-judgmental guidance in plain language.",
-    "Explain recommendations using cause-and-effect logic tied to credit factors.",
-    "Do not promise exact score outcomes.",
-    "Include a short disclaimer that this is educational guidance, not legal or financial advice.",
-    "When useful, provide an action order for the next 30, 60, and 90 days.",
-    "Keep responses concise but actionable."
+    "Keep responses short, they must be under 67 words.",
   ].join(" ");
 }
 
 export function buildAdvisorUserPrompt({
   profile,
   report,
-  userMessage
+  userMessage,
+  includeContext = true
 }: {
   profile: CreditProfile;
   report: CreditHealthReport;
   userMessage: string;
+  includeContext?: boolean;
 }): string {
+  if (!includeContext) {
+    return [
+      `User question: ${userMessage}`,
+      "",
+      "Use the Profile and Analysis context already provided earlier in this conversation."
+    ].join("\n");
+  }
+
   return [
     `User question: ${userMessage}`,
     "",
@@ -60,6 +66,6 @@ export function buildAdvisorUserPrompt({
       2
     ),
     "",
-    "Return: 1) key takeaways, 2) prioritized next steps, 3) short risk warnings, 4) brief disclaimer."
+    "Use this context to answer the user question."
   ].join("\n");
 }

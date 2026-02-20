@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -82,6 +82,8 @@ type ChatResponse = {
   report: CreditHealthReport;
   meta: {
     usedBedrock: boolean;
+    conversationId: string;
+    profileContextIncluded: boolean;
   };
 };
 
@@ -94,43 +96,58 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 const MIN_CREDIT_SCORE = 300;
 const MAX_CREDIT_SCORE = 850;
 const DEFAULT_AI_PROJECTION_QUESTION =
-  "What are my projected score outcomes if I reduce utilization below 30%, keep 100% on-time payments for 90 days, and pause non-essential applications for 6 months?";
+  "What changes would most improve this profile?";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function buildProjectionCoachReply(profile: CreditProfile): string {
-  const utilizationProjection = clamp(
-    profile.currentScore + (profile.utilizationRatio > 0.3 ? 22 : 8),
-    MIN_CREDIT_SCORE,
-    MAX_CREDIT_SCORE
-  );
-  const paymentProjection = clamp(
-    profile.currentScore + (profile.onTimePaymentRate < 0.97 ? 16 : 6),
-    MIN_CREDIT_SCORE,
-    MAX_CREDIT_SCORE
-  );
-  const inquiryProjection = clamp(
-    profile.currentScore + (profile.hardInquiriesLast12Months > 2 ? 12 : 4),
-    MIN_CREDIT_SCORE,
-    MAX_CREDIT_SCORE
-  );
+function compactContextNote(note: string): string {
+  const normalized = note.trim().replace(/\.$/, "");
+  const lower = normalized.toLowerCase();
 
-  return [
-    `Reduce utilization below 30% -> projected score ${utilizationProjection}`,
-    `Keep 100% on-time payments for next 90 days -> projected score ${paymentProjection}`,
-    `Pause non-essential applications for 6 months -> projected score ${inquiryProjection}`
-  ].join("\n");
+  if (lower === "missed payments from two years ago") {
+    return "Missed payments 2y ago";
+  }
+
+  if (lower === "high card utilization due to emergency expenses") {
+    return "High utilization from emergency expenses";
+  }
+
+  return normalized.length > 42 ? `${normalized.slice(0, 39).trimEnd()}...` : normalized;
+}
+
+function buildSingleLineContext(notes: string[]): string {
+  const compactNotes = notes
+    .slice(0, 2)
+    .map((note) => compactContextNote(note))
+    .filter((note) => note.length > 0);
+
+  if (compactNotes.length === 0) {
+    return "No profile context available";
+  }
+
+  const combined = compactNotes.join(" • ");
+  return combined.length > 86 ? `${combined.slice(0, 83).trimEnd()}...` : combined;
+}
+
+function createConversationId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `conv-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export default function HomePage() {
   const [profiles, setProfiles] = useState<CreditProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const [conversationId, setConversationId] = useState<string>("");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     void loadProfiles();
@@ -172,9 +189,19 @@ export default function HomePage() {
       return;
     }
 
+    setConversationId(createConversationId());
     setChatInput(DEFAULT_AI_PROJECTION_QUESTION);
     setChatMessages([]);
   }, [selectedProfileId]);
+
+  useEffect(() => {
+    const chatLog = chatLogRef.current;
+    if (!chatLog) {
+      return;
+    }
+
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }, [chatMessages]);
 
   const scoreTrend = useMemo(() => {
     if (!selectedProfile) {
@@ -245,6 +272,14 @@ export default function HomePage() {
 
   const trendGradientId = `trend-area-${selectedProfileId || "default"}`;
 
+  const contextHeadline = useMemo(() => {
+    if (!selectedProfile || selectedProfile.notes.length === 0) {
+      return "Context: No profile context available";
+    }
+
+    return `Context: ${buildSingleLineContext(selectedProfile.notes)}`;
+  }, [selectedProfile]);
+
   async function loadProfiles() {
     try {
       const response = await fetch(`${API_BASE}/profiles`);
@@ -270,18 +305,9 @@ export default function HomePage() {
       return;
     }
 
-    if (
-      selectedProfile &&
-      userMessage === DEFAULT_AI_PROJECTION_QUESTION
-    ) {
-      setError(null);
-      setChatMessages((previous) => [
-        ...previous,
-        { role: "user", text: userMessage },
-        { role: "assistant", text: buildProjectionCoachReply(selectedProfile) }
-      ]);
-      setChatInput("");
-      return;
+    const activeConversationId = conversationId || createConversationId();
+    if (!conversationId) {
+      setConversationId(activeConversationId);
     }
 
     setChatLoading(true);
@@ -298,7 +324,8 @@ export default function HomePage() {
         body: JSON.stringify({
           profileId: selectedProfileId,
           message: userMessage,
-          responseMode: "text"
+          responseMode: "text",
+          conversationId: activeConversationId
         })
       });
 
@@ -307,6 +334,10 @@ export default function HomePage() {
       }
 
       const payload = (await response.json()) as ChatResponse;
+      if (payload.meta.conversationId !== activeConversationId) {
+        setConversationId(payload.meta.conversationId);
+      }
+
       setChatMessages((previous) => [
         ...previous,
         { role: "assistant", text: payload.advisorText }
@@ -362,7 +393,7 @@ export default function HomePage() {
 
           {selectedProfile && (
             <div className="profile-card">
-              <h2>{selectedProfile.label}</h2>
+              <h2>{contextHeadline}</h2>
               <div className="score-metrics">
                 <article className="metric-card">
                   <p>Credit lines</p>
@@ -445,8 +476,6 @@ export default function HomePage() {
           {error && <p className="error">{error}</p>}
 
           <section className="monitor-stack">
-            <h3>Credit Monitoring Toolkit</h3>
-
             {!selectedProfile && (
               <p className="placeholder">Choose a persona to load credit tool details.</p>
             )}
@@ -554,26 +583,25 @@ export default function HomePage() {
         </section>
 
         <aside className="side-pane">
-          <section className="panel profile-brief">
-            <h3>Profile Snapshot</h3>
-            {!selectedProfile && (
-              <p className="placeholder">Choose a persona to load profile details.</p>
-            )}
-
-            {selectedProfile && (
-              <div className="profile-brief-content">
-                <p>
-                  <strong>Context:</strong>{" "}
-                  {selectedProfile.notes.length > 0
-                    ? selectedProfile.notes.slice(0, 2).join(" • ")
-                    : "No profile context available for this persona."}
-                </p>
-              </div>
-            )}
-          </section>
-
           <section className="panel ai-chat">
-            <h2>AI Credit Coach</h2>
+            <h2>AI Fingent</h2>
+
+            <div className="chat-log" ref={chatLogRef}>
+              {chatMessages.length === 0 && (
+                <article className="bubble placeholder-bubble">
+                  <p>Chat messages will appear here.</p>
+                </article>
+              )}
+              {chatMessages.map((message, index) => (
+                <article
+                  key={`${message.role}-${index}`}
+                  className={`bubble ${message.role === "assistant" ? "assistant" : "user"}`}
+                >
+                  <p className="role">{message.role === "assistant" ? "Coach" : "You"}</p>
+                  <p>{message.text}</p>
+                </article>
+              ))}
+            </div>
 
             <div className="composer">
               <textarea
@@ -592,21 +620,6 @@ export default function HomePage() {
                   {chatLoading ? "Thinking..." : "Send"}
                 </button>
               </div>
-            </div>
-
-            <div className="chat-log">
-              {chatMessages.length === 0 && (
-                <p className="placeholder">Conversation will appear here.</p>
-              )}
-              {chatMessages.map((message, index) => (
-                <article
-                  key={`${message.role}-${index}`}
-                  className={`bubble ${message.role === "assistant" ? "assistant" : "user"}`}
-                >
-                  <p className="role">{message.role === "assistant" ? "Coach" : "You"}</p>
-                  <p>{message.text}</p>
-                </article>
-              ))}
             </div>
           </section>
         </aside>

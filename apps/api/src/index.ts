@@ -12,6 +12,7 @@ if (process.env.DD_TRACE_ENABLED === "true") {
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   BedrockRuntimeClient,
@@ -20,7 +21,8 @@ import {
 import {
   PollyClient,
   SynthesizeSpeechCommand,
-  type SynthesizeSpeechCommandOutput
+  type SynthesizeSpeechCommandOutput,
+  type VoiceId
 } from "@aws-sdk/client-polly";
 import { evaluateCreditProfile } from "@credit-coach/credit-engine";
 import { buildAdvisorSystemPrompt, buildAdvisorUserPrompt } from "@credit-coach/prompts";
@@ -51,12 +53,30 @@ const mockUsersPath = new URL("../../../data/mock-users/users.json", import.meta
 const chatSchema = z.object({
   profileId: z.string().min(1),
   message: z.string().min(1),
-  responseMode: z.enum(["text", "voice"]).default("text")
+  responseMode: z.enum(["text", "voice"]).default("text"),
+  conversationId: z.string().min(1).max(120).optional()
 });
 
 const ttsSchema = z.object({
   text: z.string().min(1).max(3500)
 });
+
+type ConversationRole = "user" | "assistant";
+
+type ConversationMessage = {
+  role: ConversationRole;
+  text: string;
+};
+
+type ConversationSession = {
+  profileId: string;
+  messages: ConversationMessage[];
+  updatedAtMs: number;
+};
+
+const conversationSessions = new Map<string, ConversationSession>();
+const CONVERSATION_TTL_MS = 2 * 60 * 60 * 1000;
+const MAX_CONVERSATION_MESSAGES = 20;
 
 app.get("/health", async () => {
   return {
@@ -82,7 +102,8 @@ app.post("/chat", async (request, reply) => {
     };
   }
 
-  const { profileId, message, responseMode } = parsed.data;
+  const { profileId, message, responseMode, conversationId } = parsed.data;
+  const resolvedConversationId = conversationId?.trim() || randomUUID();
   const profiles = await loadProfiles();
   const profile = profiles.find((candidate) => candidate.id === profileId);
 
@@ -94,7 +115,12 @@ app.post("/chat", async (request, reply) => {
   }
 
   const report = evaluateCreditProfile(profile);
-  const advisor = await generateAdvisorReply({ profile, report, message });
+  const advisor = await generateAdvisorReply({
+    profile,
+    report,
+    message,
+    conversationId: resolvedConversationId
+  });
   const audioBase64 =
     responseMode === "voice" ? await synthesizeSpeech(advisor.text) : undefined;
 
@@ -103,15 +129,19 @@ app.post("/chat", async (request, reply) => {
     report,
     audioBase64,
     meta: {
-      usedBedrock: advisor.usedBedrock
+      usedBedrock: advisor.usedBedrock,
+      conversationId: advisor.conversationId,
+      profileContextIncluded: advisor.profileContextIncluded
     }
   };
 
   request.log.info(
     {
       profileId,
+      conversationId: advisor.conversationId,
       responseMode,
       usedBedrock: advisor.usedBedrock,
+      profileContextIncluded: advisor.profileContextIncluded,
       healthBand: report.band,
       datadog: {
         llm_provider: "aws.bedrock",
@@ -160,40 +190,110 @@ async function loadProfiles(): Promise<CreditProfile[]> {
   return JSON.parse(raw) as CreditProfile[];
 }
 
+function pruneExpiredConversations(nowMs: number): void {
+  for (const [conversationId, session] of conversationSessions.entries()) {
+    if (nowMs - session.updatedAtMs > CONVERSATION_TTL_MS) {
+      conversationSessions.delete(conversationId);
+    }
+  }
+}
+
+function getConversationSession(
+  conversationId: string,
+  profileId: string
+): ConversationSession {
+  const nowMs = Date.now();
+  pruneExpiredConversations(nowMs);
+
+  const existing = conversationSessions.get(conversationId);
+  if (existing && existing.profileId === profileId) {
+    existing.updatedAtMs = nowMs;
+    return existing;
+  }
+
+  const fresh: ConversationSession = {
+    profileId,
+    messages: [],
+    updatedAtMs: nowMs
+  };
+  conversationSessions.set(conversationId, fresh);
+  return fresh;
+}
+
+function toBedrockMessages(messages: ConversationMessage[]) {
+  return messages.map((message) => ({
+    role: message.role,
+    content: [{ text: message.text }]
+  }));
+}
+
+function appendConversationTurn(
+  session: ConversationSession,
+  userText: string,
+  assistantText: string
+): void {
+  session.messages.push({ role: "user", text: userText });
+  session.messages.push({ role: "assistant", text: assistantText });
+
+  if (session.messages.length > MAX_CONVERSATION_MESSAGES) {
+    const tail = session.messages.slice(-(MAX_CONVERSATION_MESSAGES - 1));
+    session.messages = [session.messages[0], ...tail];
+  }
+
+  session.updatedAtMs = Date.now();
+}
+
 async function generateAdvisorReply({
   profile,
   report,
-  message
+  message,
+  conversationId
 }: {
   profile: CreditProfile;
   report: CreditHealthReport;
   message: string;
-}): Promise<{ text: string; usedBedrock: boolean }> {
+  conversationId: string;
+}): Promise<{
+  text: string;
+  usedBedrock: boolean;
+  conversationId: string;
+  profileContextIncluded: boolean;
+}> {
+  const session = getConversationSession(conversationId, profile.id);
+  const profileContextIncluded = session.messages.length === 0;
+  const userPrompt = buildAdvisorUserPrompt({
+    profile,
+    report,
+    userMessage: message,
+    includeContext: profileContextIncluded
+  });
   const fallback = createFallbackAdvice(report);
 
   if (process.env.DISABLE_BEDROCK === "true") {
+    appendConversationTurn(session, userPrompt, fallback);
     return {
       text: fallback,
-      usedBedrock: false
+      usedBedrock: false,
+      conversationId,
+      profileContextIncluded
     };
   }
 
   try {
     const systemPrompt = buildAdvisorSystemPrompt();
-    const userPrompt = buildAdvisorUserPrompt({ profile, report, userMessage: message });
+    const conversationHistory = toBedrockMessages(session.messages);
+    const currentUserMessage = {
+      role: "user" as const,
+      content: [{ text: userPrompt }]
+    };
 
     const command = new ConverseCommand({
       modelId: bedrockModelId,
       system: [{ text: systemPrompt }],
-      messages: [
-        {
-          role: "user",
-          content: [{ text: userPrompt }]
-        }
-      ],
+      messages: [...conversationHistory, currentUserMessage],
       inferenceConfig: {
-        maxTokens: 700,
-        temperature: 0.3
+        maxTokens: 180,
+        temperature: 0.2
       }
     });
 
@@ -205,15 +305,21 @@ async function generateAdvisorReply({
         .trim() ?? "";
 
     if (!text) {
+      appendConversationTurn(session, userPrompt, fallback);
       return {
         text: fallback,
-        usedBedrock: false
+        usedBedrock: false,
+        conversationId,
+        profileContextIncluded
       };
     }
 
+    appendConversationTurn(session, userPrompt, text);
     return {
       text,
-      usedBedrock: true
+      usedBedrock: true,
+      conversationId,
+      profileContextIncluded
     };
   } catch (error) {
     app.log.warn(
@@ -224,9 +330,12 @@ async function generateAdvisorReply({
       "bedrock_converse_failed"
     );
 
+    appendConversationTurn(session, userPrompt, fallback);
     return {
       text: fallback,
-      usedBedrock: false
+      usedBedrock: false,
+      conversationId,
+      profileContextIncluded
     };
   }
 }
@@ -234,19 +343,14 @@ async function generateAdvisorReply({
 function createFallbackAdvice(report: CreditHealthReport): string {
   const topActions = report.recommendedActions.slice(0, 3);
   const actionText = topActions
-    .map(
-      (action, index) =>
-        `${index + 1}. ${action.title} (${action.impact}, ${action.timeline}) - ${action.why}`
-    )
+    .map((action) => `- ${action.title} (${action.timeline})`)
     .join("\n");
 
   return [
-    `Current credit health: ${report.band}. ${report.summary}`,
-    `Estimated score outlook: ${report.estimatedScoreRange.current} now, with potential movement to ${report.estimatedScoreRange.conservative}-${report.estimatedScoreRange.optimistic}.`,
-    "Recommended next steps:",
+    `Top priorities for this profile (${report.band}):`,
     actionText,
-    "This is educational guidance and not financial or legal advice."
-  ].join("\n\n");
+    "Educational only, not financial advice."
+  ].join("\n");
 }
 
 async function synthesizeSpeech(text: string): Promise<string | undefined> {
@@ -254,11 +358,13 @@ async function synthesizeSpeech(text: string): Promise<string | undefined> {
     return undefined;
   }
 
+  const configuredVoiceId = process.env.POLLY_VOICE_ID as VoiceId | undefined;
+
   try {
     const response = await pollyClient.send(
       new SynthesizeSpeechCommand({
         OutputFormat: "mp3",
-        VoiceId: process.env.POLLY_VOICE_ID ?? "Joanna",
+        VoiceId: configuredVoiceId ?? "Joanna",
         Text: text.slice(0, 3000)
       })
     );
