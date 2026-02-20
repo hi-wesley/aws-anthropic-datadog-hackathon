@@ -51,6 +51,11 @@ type ChatResponse = {
   };
 };
 
+type ChatMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const MIN_CREDIT_SCORE = 300;
 const MAX_CREDIT_SCORE = 850;
@@ -62,8 +67,11 @@ function clamp(value: number, min: number, max: number): number {
 export default function HomePage() {
   const [profiles, setProfiles] = useState<CreditProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [report, setReport] = useState<CreditHealthReport | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,36 +88,10 @@ export default function HomePage() {
       return;
     }
 
+    setChatInput("");
+    setChatMessages([]);
     void loadProfileReport(selectedProfileId);
   }, [selectedProfileId]);
-
-  const factorScores = useMemo(() => {
-    if (report?.componentScores) {
-      return report.componentScores;
-    }
-
-    if (!selectedProfile) {
-      return null;
-    }
-
-    return {
-      paymentHistory: Math.round(selectedProfile.onTimePaymentRate * 100),
-      utilization: clamp(100 - Math.round(selectedProfile.utilizationRatio * 100), 0, 100),
-      historyDepth: clamp(
-        Math.round((selectedProfile.oldestAccountMonths / 120) * 100),
-        0,
-        100
-      ),
-      inquiriesAndMix: clamp(
-        Math.round(
-          (selectedProfile.creditLines / 6) * 65 +
-            (35 - selectedProfile.hardInquiriesLast12Months * 6)
-        ),
-        0,
-        100
-      )
-    };
-  }, [report, selectedProfile]);
 
   const scoreTrend = useMemo(() => {
     if (!selectedProfile) {
@@ -309,12 +291,55 @@ export default function HomePage() {
     }
   }
 
+  async function sendChatMessage() {
+    const userMessage = chatInput.trim();
+    if (!selectedProfileId || !userMessage || chatLoading) {
+      return;
+    }
+
+    setChatLoading(true);
+    setError(null);
+    setChatMessages((previous) => [...previous, { role: "user", text: userMessage }]);
+    setChatInput("");
+
+    try {
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          profileId: selectedProfileId,
+          message: userMessage,
+          responseMode: "text"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Chat request failed (${response.status})`);
+      }
+
+      const payload = (await response.json()) as ChatResponse;
+      setChatMessages((previous) => [
+        ...previous,
+        { role: "assistant", text: payload.advisorText }
+      ]);
+      setReport(payload.report);
+    } catch (chatError) {
+      const message = chatError instanceof Error ? chatError.message : "Unknown error";
+      setError(message);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
   return (
     <main className="page-shell">
       <section className="panel top-bar">
-        <label className="top-bar-label">
-          Demo Persona
+        <label className="top-bar-label" htmlFor="persona-select">
+          <span>Select Demo Persona</span>
           <select
+            id="persona-select"
             value={selectedProfileId}
             onChange={(event) => setSelectedProfileId(event.target.value)}
           >
@@ -381,51 +406,6 @@ export default function HomePage() {
             </div>
           )}
 
-          <section className="insights">
-            <h2>Credit Health Snapshot</h2>
-            {analysisLoading && <p>Analyzing selected persona...</p>}
-            {!analysisLoading && !report && !error && (
-              <p>Select a persona to load report details.</p>
-            )}
-
-            {report && (
-              <>
-                <p className="summary">{report.summary}</p>
-                <p>Band: {report.band}</p>
-                <p>
-                  Estimated range: {report.estimatedScoreRange.current} {"->"}{" "}
-                  {report.estimatedScoreRange.conservative} to{" "}
-                  {report.estimatedScoreRange.optimistic}
-                </p>
-
-                <h3>Strengths</h3>
-                <ul>
-                  {report.strengths.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-
-                <h3>Risk Factors</h3>
-                <ul>
-                  {report.riskFactors.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-
-                <h3>Recommended Actions</h3>
-                <ul>
-                  {report.recommendedActions.map((action) => (
-                    <li key={action.id}>
-                      <strong>{action.title}</strong> ({action.impact})
-                      <p>{action.why}</p>
-                      <p>Timeline: {action.timeline}</p>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
-
           {error && <p className="error">{error}</p>}
 
           <section className="monitor-stack">
@@ -443,15 +423,6 @@ export default function HomePage() {
                     <p>Score: {selectedProfile.currentScore}</p>
                     <p>Band: {report?.band ?? "pending analysis"}</p>
                     <p>Range context: 300-850</p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Scoring Model + Bureau</h4>
-                  <div className="monitor-content">
-                    <p>Model shown: VantageScore 3.0 style educational view (mock).</p>
-                    <p>Data sources: TransUnion and Experian style profile fields (mock).</p>
-                    <p>Lender-used scores can differ from this educational score.</p>
                   </div>
                 </section>
 
@@ -479,44 +450,6 @@ export default function HomePage() {
                         </li>
                       ))}
                     </ul>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Credit Factor Breakdown</h4>
-                  <div className="monitor-content">
-                    {factorScores && (
-                      <ul className="factor-list">
-                        <li>
-                          <p>Payment history</p>
-                          <div className="factor-bar">
-                            <span style={{ width: `${factorScores.paymentHistory}%` }} />
-                          </div>
-                          <small>{factorScores.paymentHistory}/100</small>
-                        </li>
-                        <li>
-                          <p>Utilization / usage</p>
-                          <div className="factor-bar">
-                            <span style={{ width: `${factorScores.utilization}%` }} />
-                          </div>
-                          <small>{factorScores.utilization}/100</small>
-                        </li>
-                        <li>
-                          <p>Credit age / depth</p>
-                          <div className="factor-bar">
-                            <span style={{ width: `${factorScores.historyDepth}%` }} />
-                          </div>
-                          <small>{factorScores.historyDepth}/100</small>
-                        </li>
-                        <li>
-                          <p>Inquiries + mix</p>
-                          <div className="factor-bar">
-                            <span style={{ width: `${factorScores.inquiriesAndMix}%` }} />
-                          </div>
-                          <small>{factorScores.inquiriesAndMix}/100</small>
-                        </li>
-                      </ul>
-                    )}
                   </div>
                 </section>
 
@@ -573,43 +506,6 @@ export default function HomePage() {
                 </section>
 
                 <section className="monitor-block">
-                  <h4>Personal Information</h4>
-                  <div className="monitor-content">
-                    <p>Name: Mock Persona ({selectedProfile.id})</p>
-                    <p>Address: Masked for demo mode</p>
-                    <p>SSN: Not stored in this prototype</p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Alerts / Monitoring</h4>
-                  <div className="monitor-content">
-                    <ul className="simple-list">
-                      <li>Score change alerts: Enabled (session-level)</li>
-                      <li>
-                        New inquiry alerts:{" "}
-                        {selectedProfile.hardInquiriesLast12Months > 2 ? "High activity" : "Normal activity"}
-                      </li>
-                      <li>
-                        Delinquency watch:{" "}
-                        {selectedProfile.onTimePaymentRate < 0.97 ? "Elevated" : "Low"}
-                      </li>
-                    </ul>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Identity Protection Signals</h4>
-                  <div className="monitor-content">
-                    <ul className="simple-list">
-                      <li>Dark web monitoring: Placeholder integration</li>
-                      <li>Identity breach watch: Placeholder integration</li>
-                      <li>Fraud account watch: Placeholder integration</li>
-                    </ul>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
                   <h4>What-If Simulator</h4>
                   <div className="monitor-content">
                     <ul className="simple-list">
@@ -649,19 +545,62 @@ export default function HomePage() {
           </section>
         </section>
 
-        <aside className="panel side-pane">
-          {selectedProfile && selectedProfile.notes.length > 0 ? (
-            <section className="profile-notes right-notes">
-              <h3>Profile context</h3>
-              <ul>
-                {selectedProfile.notes.map((note) => (
-                  <li key={note}>{note}</li>
-                ))}
-              </ul>
-            </section>
-          ) : (
-            <p className="placeholder">No profile context available for this persona.</p>
-          )}
+        <aside className="side-pane">
+          <section className="panel profile-brief">
+            <h3>Profile Snapshot</h3>
+            {!selectedProfile && (
+              <p className="placeholder">Choose a persona to load profile details.</p>
+            )}
+
+            {selectedProfile && (
+              <div className="profile-brief-content">
+                <p>
+                  <strong>Context:</strong>{" "}
+                  {selectedProfile.notes.length > 0
+                    ? selectedProfile.notes.slice(0, 2).join(" • ")
+                    : "No profile context available for this persona."}
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className="panel ai-chat">
+            <h2>AI Credit Coach</h2>
+
+            <div className="composer">
+              <textarea
+                value={chatInput}
+                onChange={(event) => setChatInput(event.target.value)}
+                placeholder="Ask a question about improving this profile."
+                rows={4}
+              />
+
+              <div className="row-actions">
+                <button
+                  type="button"
+                  onClick={() => void sendChatMessage()}
+                  disabled={chatLoading}
+                >
+                  {chatLoading ? "Thinking..." : "Send"}
+                </button>
+              </div>
+            </div>
+
+            <div className="chat-log">
+              {chatMessages.length === 0 && (
+                <p className="placeholder">Conversation will appear here.</p>
+              )}
+              {chatMessages.map((message, index) => (
+                <article
+                  key={`${message.role}-${index}`}
+                  className={`bubble ${message.role === "assistant" ? "assistant" : "user"}`}
+                >
+                  <p className="role">{message.role === "assistant" ? "Coach" : "You"}</p>
+                  <p>{message.text}</p>
+                </article>
+              ))}
+            </div>
+          </section>
         </aside>
       </section>
 
