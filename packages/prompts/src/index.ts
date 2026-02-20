@@ -34,8 +34,12 @@ export function buildAdvisorUserPrompt({
         utilizationRatio: profile.utilizationRatio,
         onTimePaymentRate: profile.onTimePaymentRate,
         oldestAccountMonths: profile.oldestAccountMonths,
+        oldestAccountDetail: profile.oldestAccountDetail ?? null,
         hardInquiriesLast12Months: profile.hardInquiriesLast12Months,
+        creditLineHistory: profile.creditLineHistory ?? [],
+        hardInquiryHistory: profile.hardInquiryHistory ?? [],
         derogatoryMarks: profile.derogatoryMarks,
+        derogatoryMarkHistory: profile.derogatoryMarkHistory ?? [],
         notes: profile.notes
       },
       null,

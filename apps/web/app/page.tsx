@@ -1,6 +1,36 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
+
+type HardInquiry = {
+  lender: string;
+  date: string;
+};
+
+type CreditLine = {
+  accountName: string;
+  limit: number;
+};
+
+type OldestAccountDetail = {
+  accountName: string;
+  openedDate: string;
+};
+
+type DerogatoryMark = {
+  item: string;
+  date: string;
+  status: string;
+};
 
 type CreditProfile = {
   id: string;
@@ -13,6 +43,10 @@ type CreditProfile = {
   hardInquiriesLast12Months: number;
   derogatoryMarks: number;
   notes: string[];
+  creditLineHistory?: CreditLine[];
+  oldestAccountDetail?: OldestAccountDetail;
+  hardInquiryHistory?: HardInquiry[];
+  derogatoryMarkHistory?: DerogatoryMark[];
 };
 
 type CreditAction = {
@@ -59,9 +93,35 @@ type ChatMessage = {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const MIN_CREDIT_SCORE = 300;
 const MAX_CREDIT_SCORE = 850;
+const DEFAULT_AI_PROJECTION_QUESTION =
+  "What are my projected score outcomes if I reduce utilization below 30%, keep 100% on-time payments for 90 days, and pause non-essential applications for 6 months?";
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function buildProjectionCoachReply(profile: CreditProfile): string {
+  const utilizationProjection = clamp(
+    profile.currentScore + (profile.utilizationRatio > 0.3 ? 22 : 8),
+    MIN_CREDIT_SCORE,
+    MAX_CREDIT_SCORE
+  );
+  const paymentProjection = clamp(
+    profile.currentScore + (profile.onTimePaymentRate < 0.97 ? 16 : 6),
+    MIN_CREDIT_SCORE,
+    MAX_CREDIT_SCORE
+  );
+  const inquiryProjection = clamp(
+    profile.currentScore + (profile.hardInquiriesLast12Months > 2 ? 12 : 4),
+    MIN_CREDIT_SCORE,
+    MAX_CREDIT_SCORE
+  );
+
+  return [
+    `Reduce utilization below 30% -> projected score ${utilizationProjection}`,
+    `Keep 100% on-time payments for next 90 days -> projected score ${paymentProjection}`,
+    `Pause non-essential applications for 6 months -> projected score ${inquiryProjection}`
+  ].join("\n");
 }
 
 export default function HomePage() {
@@ -69,8 +129,6 @@ export default function HomePage() {
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [report, setReport] = useState<CreditHealthReport | null>(null);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,14 +141,39 @@ export default function HomePage() {
     [profiles, selectedProfileId]
   );
 
+  const totalLimit = useMemo(() => {
+    if (!selectedProfile) {
+      return 0;
+    }
+
+    if (
+      selectedProfile.creditLineHistory &&
+      selectedProfile.creditLineHistory.length > 0
+    ) {
+      return selectedProfile.creditLineHistory.reduce(
+        (sum, line) => sum + line.limit,
+        0
+      );
+    }
+
+    return Math.max(3000, selectedProfile.creditLines * 4200);
+  }, [selectedProfile]);
+
+  const totalBalance = useMemo(() => {
+    if (!selectedProfile) {
+      return 0;
+    }
+
+    return Math.round(totalLimit * selectedProfile.utilizationRatio);
+  }, [selectedProfile, totalLimit]);
+
   useEffect(() => {
     if (!selectedProfileId) {
       return;
     }
 
-    setChatInput("");
+    setChatInput(DEFAULT_AI_PROJECTION_QUESTION);
     setChatMessages([]);
-    void loadProfileReport(selectedProfileId);
   }, [selectedProfileId]);
 
   const scoreTrend = useMemo(() => {
@@ -118,111 +201,6 @@ export default function HomePage() {
     });
   }, [selectedProfile]);
 
-  const changeDrivers = useMemo(() => {
-    if (!selectedProfile) {
-      return [] as Array<{ direction: "up" | "down"; detail: string }>;
-    }
-
-    const drivers: Array<{ direction: "up" | "down"; detail: string }> = [];
-
-    if (selectedProfile.utilizationRatio > 0.3) {
-      drivers.push({
-        direction: "down",
-        detail: "Higher utilization is putting downward pressure on score momentum."
-      });
-    } else {
-      drivers.push({
-        direction: "up",
-        detail: "Healthy utilization supports score stability."
-      });
-    }
-
-    if (selectedProfile.onTimePaymentRate < 0.97) {
-      drivers.push({
-        direction: "down",
-        detail: "Payment history has past missed payments affecting outcomes."
-      });
-    } else {
-      drivers.push({
-        direction: "up",
-        detail: "Consistent on-time payments are contributing positively."
-      });
-    }
-
-    if (selectedProfile.hardInquiriesLast12Months > 2) {
-      drivers.push({
-        direction: "down",
-        detail: "Recent hard inquiries are adding short-term scoring drag."
-      });
-    } else {
-      drivers.push({
-        direction: "up",
-        detail: "Low inquiry volume is helping limit score volatility."
-      });
-    }
-
-    if (selectedProfile.oldestAccountMonths >= 60) {
-      drivers.push({
-        direction: "up",
-        detail: "Longer credit history depth is supporting profile strength."
-      });
-    } else {
-      drivers.push({
-        direction: "down",
-        detail: "Limited credit age depth is constraining scoring headroom."
-      });
-    }
-
-    return drivers;
-  }, [selectedProfile]);
-
-  const accountBreakdown = useMemo(() => {
-    if (!selectedProfile) {
-      return [] as Array<{
-        id: string;
-        type: string;
-        ageMonths: number;
-        limit: number;
-        balance: number;
-        status: string;
-      }>;
-    }
-
-    const totalAccounts = Math.max(1, Math.min(selectedProfile.creditLines, 4));
-    const totalLimitBase = Math.max(3000, selectedProfile.creditLines * 4200);
-    const utilizationSeed = selectedProfile.utilizationRatio;
-
-    return Array.from({ length: totalAccounts }).map((_, index) => {
-      const limit = Math.round(totalLimitBase / totalAccounts + index * 450);
-      const utilizationForLine = clamp(
-        utilizationSeed + (index - 1) * 0.08,
-        0.06,
-        0.95
-      );
-      const balance = Math.round(limit * utilizationForLine);
-      const ageMonths = Math.max(3, selectedProfile.oldestAccountMonths - index * 10);
-
-      return {
-        id: `account-${index + 1}`,
-        type: index % 2 === 0 ? "Revolving credit card" : "Installment loan",
-        ageMonths,
-        limit,
-        balance,
-        status: selectedProfile.onTimePaymentRate >= 0.97 ? "Current" : "Current with historical delinquencies"
-      };
-    });
-  }, [selectedProfile]);
-
-  const totalLimit = useMemo(
-    () => accountBreakdown.reduce((sum, account) => sum + account.limit, 0),
-    [accountBreakdown]
-  );
-
-  const totalBalance = useMemo(
-    () => accountBreakdown.reduce((sum, account) => sum + account.balance, 0),
-    [accountBreakdown]
-  );
-
   const scorePercent = useMemo(() => {
     if (!selectedProfile) {
       return 0;
@@ -238,6 +216,34 @@ export default function HomePage() {
       100
     );
   }, [selectedProfile]);
+
+  const trendDelta = useMemo(() => {
+    if (scoreTrend.length < 2) {
+      return 0;
+    }
+
+    return scoreTrend[scoreTrend.length - 1].score - scoreTrend[0].score;
+  }, [scoreTrend]);
+
+  const trendDomain = useMemo(() => {
+    if (scoreTrend.length === 0) {
+      return {
+        min: MIN_CREDIT_SCORE,
+        max: MAX_CREDIT_SCORE
+      };
+    }
+
+    const values = scoreTrend.map((point) => point.score);
+    const min = Math.max(MIN_CREDIT_SCORE, Math.min(...values) - 12);
+    const max = Math.min(MAX_CREDIT_SCORE, Math.max(...values) + 12);
+
+    return {
+      min,
+      max
+    };
+  }, [scoreTrend]);
+
+  const trendGradientId = `trend-area-${selectedProfileId || "default"}`;
 
   async function loadProfiles() {
     try {
@@ -258,42 +264,23 @@ export default function HomePage() {
     }
   }
 
-  async function loadProfileReport(profileId: string) {
-    setAnalysisLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          profileId,
-          message: "Provide a concise credit health summary for this persona.",
-          responseMode: "text"
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Analysis request failed (${response.status})`);
-      }
-
-      const payload = (await response.json()) as ChatResponse;
-      setReport(payload.report);
-    } catch (analysisError) {
-      const message =
-        analysisError instanceof Error ? analysisError.message : "Unknown error";
-      setError(message);
-      setReport(null);
-    } finally {
-      setAnalysisLoading(false);
-    }
-  }
-
   async function sendChatMessage() {
     const userMessage = chatInput.trim();
     if (!selectedProfileId || !userMessage || chatLoading) {
+      return;
+    }
+
+    if (
+      selectedProfile &&
+      userMessage === DEFAULT_AI_PROJECTION_QUESTION
+    ) {
+      setError(null);
+      setChatMessages((previous) => [
+        ...previous,
+        { role: "user", text: userMessage },
+        { role: "assistant", text: buildProjectionCoachReply(selectedProfile) }
+      ]);
+      setChatInput("");
       return;
     }
 
@@ -324,7 +311,6 @@ export default function HomePage() {
         ...previous,
         { role: "assistant", text: payload.advisorText }
       ]);
-      setReport(payload.report);
     } catch (chatError) {
       const message = chatError instanceof Error ? chatError.message : "Unknown error";
       setError(message);
@@ -381,10 +367,28 @@ export default function HomePage() {
                 <article className="metric-card">
                   <p>Credit lines</p>
                   <h3>{selectedProfile.creditLines}</h3>
+                  {selectedProfile.creditLineHistory &&
+                  selectedProfile.creditLineHistory.length > 0 ? (
+                    <ul className="metric-detail-list">
+                      {selectedProfile.creditLineHistory.map((line) => (
+                        <li key={`${line.accountName}-${line.limit}`}>
+                          {line.accountName}: ${line.limit.toLocaleString()} limit
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="metric-subtext">No credit line details listed.</p>
+                  )}
                 </article>
                 <article className="metric-card">
                   <p>Utilization</p>
                   <h3>{(selectedProfile.utilizationRatio * 100).toFixed(0)}%</h3>
+                  <p className="metric-subtext">
+                    Total limits: ${totalLimit.toLocaleString()}
+                  </p>
+                  <p className="metric-subtext">
+                    Total balances: ${totalBalance.toLocaleString()}
+                  </p>
                 </article>
                 <article className="metric-card">
                   <p>On-time payments</p>
@@ -393,14 +397,46 @@ export default function HomePage() {
                 <article className="metric-card">
                   <p>Oldest account</p>
                   <h3>{selectedProfile.oldestAccountMonths} mo</h3>
+                  <p className="metric-subtext">
+                    {selectedProfile.oldestAccountDetail?.accountName ??
+                      "Account detail unavailable"}
+                  </p>
+                  <p className="metric-subtext">
+                    Opened:{" "}
+                    {selectedProfile.oldestAccountDetail?.openedDate ?? "Unknown date"}
+                  </p>
                 </article>
                 <article className="metric-card">
                   <p>Hard inquiries (12m)</p>
                   <h3>{selectedProfile.hardInquiriesLast12Months}</h3>
+                  {selectedProfile.hardInquiryHistory &&
+                  selectedProfile.hardInquiryHistory.length > 0 ? (
+                    <ul className="metric-detail-list">
+                      {selectedProfile.hardInquiryHistory.map((inquiry) => (
+                        <li key={`${inquiry.lender}-${inquiry.date}`}>
+                          {inquiry.lender}, {inquiry.date}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="metric-subtext">No recent hard inquiries listed.</p>
+                  )}
                 </article>
                 <article className="metric-card">
                   <p>Derogatory marks</p>
                   <h3>{selectedProfile.derogatoryMarks}</h3>
+                  {selectedProfile.derogatoryMarkHistory &&
+                  selectedProfile.derogatoryMarkHistory.length > 0 ? (
+                    <ul className="metric-detail-list">
+                      {selectedProfile.derogatoryMarkHistory.map((mark) => (
+                        <li key={`${mark.item}-${mark.date}`}>
+                          {mark.item}, {mark.date} ({mark.status})
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="metric-subtext">No derogatory marks listed.</p>
+                  )}
                 </article>
               </div>
             </div>
@@ -418,125 +454,97 @@ export default function HomePage() {
             {selectedProfile && (
               <>
                 <section className="monitor-block">
-                  <h4>Current Score Snapshot</h4>
-                  <div className="monitor-content">
-                    <p>Score: {selectedProfile.currentScore}</p>
-                    <p>Band: {report?.band ?? "pending analysis"}</p>
-                    <p>Range context: 300-850</p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
                   <h4>Score Trend / History</h4>
                   <div className="monitor-content">
-                    <ul className="simple-list">
-                      {scoreTrend.map((point) => (
-                        <li key={point.label}>
-                          <strong>{point.label}</strong>: {point.score}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </section>
+                    {scoreTrend.length > 0 ? (
+                      <div
+                        className="trend-chart-wrap"
+                        role="img"
+                        aria-label={`Score trend from ${scoreTrend[0].score} to ${scoreTrend[scoreTrend.length - 1].score}`}
+                      >
+                        <div className="trend-chart-head">
+                          <p className="trend-window">Last 6 months</p>
+                          <p className={`trend-delta ${trendDelta >= 0 ? "up" : "down"}`}>
+                            {trendDelta >= 0 ? "+" : ""}
+                            {trendDelta} pts
+                          </p>
+                        </div>
 
-                <section className="monitor-block">
-                  <h4>Why Score Changed</h4>
-                  <div className="monitor-content">
-                    <ul className="simple-list">
-                      {changeDrivers.map((driver) => (
-                        <li key={driver.detail}>
-                          <strong>{driver.direction === "up" ? "Positive" : "Negative"}:</strong>{" "}
-                          {driver.detail}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Credit Report Summary</h4>
-                  <div className="monitor-content">
-                    <p>Open accounts (estimated): {selectedProfile.creditLines}</p>
-                    <p>Estimated total limits: ${totalLimit.toLocaleString()}</p>
-                    <p>Estimated total balances: ${totalBalance.toLocaleString()}</p>
-                    <p>
-                      Estimated utilization from balances:{" "}
-                      {totalLimit > 0 ? Math.round((totalBalance / totalLimit) * 100) : 0}%
-                    </p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Account-Level Details</h4>
-                  <div className="monitor-content">
-                    <ul className="simple-list">
-                      {accountBreakdown.map((account) => (
-                        <li key={account.id}>
-                          <strong>{account.type}</strong> | Age: {account.ageMonths} months | Balance: $
-                          {account.balance.toLocaleString()} / Limit: $
-                          {account.limit.toLocaleString()} | {account.status}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Inquiries</h4>
-                  <div className="monitor-content">
-                    <p>Hard inquiries in last 12 months: {selectedProfile.hardInquiriesLast12Months}</p>
-                    <p>
-                      {selectedProfile.hardInquiriesLast12Months > 2
-                        ? "Inquiry pace is elevated; reducing new applications may help."
-                        : "Inquiry pace is controlled."}
-                    </p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>Derogatory / Public-Record Items</h4>
-                  <div className="monitor-content">
-                    <p>Derogatory marks: {selectedProfile.derogatoryMarks}</p>
-                    <p>
-                      {selectedProfile.derogatoryMarks > 0
-                        ? "Derogatory items are present and likely impacting score outcomes."
-                        : "No derogatory marks in this mock profile."}
-                    </p>
-                  </div>
-                </section>
-
-                <section className="monitor-block">
-                  <h4>What-If Simulator</h4>
-                  <div className="monitor-content">
-                    <ul className="simple-list">
-                      <li>
-                        Reduce utilization below 30% {"->"} projected score{" "}
-                        {clamp(
-                          selectedProfile.currentScore +
-                            (selectedProfile.utilizationRatio > 0.3 ? 22 : 8),
-                          MIN_CREDIT_SCORE,
-                          MAX_CREDIT_SCORE
-                        )}
-                      </li>
-                      <li>
-                        Keep 100% on-time payments for next 90 days {"->"} projected score{" "}
-                        {clamp(
-                          selectedProfile.currentScore +
-                            (selectedProfile.onTimePaymentRate < 0.97 ? 16 : 6),
-                          MIN_CREDIT_SCORE,
-                          MAX_CREDIT_SCORE
-                        )}
-                      </li>
-                      <li>
-                        Pause non-essential applications for 6 months {"->"} projected score{" "}
-                        {clamp(
-                          selectedProfile.currentScore +
-                            (selectedProfile.hardInquiriesLast12Months > 2 ? 12 : 4),
-                          MIN_CREDIT_SCORE,
-                          MAX_CREDIT_SCORE
-                        )}
-                      </li>
-                    </ul>
+                        <div className="trend-chart">
+                          <ResponsiveContainer width="100%" height={190}>
+                            <AreaChart
+                              data={scoreTrend}
+                              margin={{ top: 8, right: 6, left: -18, bottom: 0 }}
+                            >
+                              <defs>
+                                <linearGradient
+                                  id={trendGradientId}
+                                  x1="0%"
+                                  y1="0%"
+                                  x2="0%"
+                                  y2="100%"
+                                >
+                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+                                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid
+                                vertical={false}
+                                stroke="#d7e4fa"
+                                strokeDasharray="4 4"
+                              />
+                              <XAxis
+                                dataKey="label"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: "#64748b" }}
+                              />
+                              <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fontSize: 11, fill: "#64748b" }}
+                                allowDecimals={false}
+                                width={34}
+                                domain={[trendDomain.min, trendDomain.max]}
+                              />
+                              <Tooltip
+                                cursor={{ stroke: "#93c5fd", strokeWidth: 1 }}
+                                formatter={(value: number | string) => [
+                                  `${value} pts`,
+                                  "Score"
+                                ]}
+                                contentStyle={{
+                                  borderRadius: 10,
+                                  border: "1px solid #d8e3f4",
+                                  backgroundColor: "#ffffff"
+                                }}
+                              />
+                              <Area
+                                type="monotone"
+                                dataKey="score"
+                                stroke="#2563eb"
+                                strokeWidth={2.5}
+                                fill={`url(#${trendGradientId})`}
+                                dot={{
+                                  r: 2.3,
+                                  fill: "#ffffff",
+                                  stroke: "#2563eb",
+                                  strokeWidth: 1.6
+                                }}
+                                activeDot={{
+                                  r: 4,
+                                  fill: "#2563eb",
+                                  stroke: "#ffffff",
+                                  strokeWidth: 2
+                                }}
+                              />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="placeholder">No trend data available.</p>
+                    )}
                   </div>
                 </section>
 

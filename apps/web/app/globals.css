@@ -224,6 +224,25 @@ button:disabled {
   font-size: 1.25rem;
 }
 
+.metric-detail-list {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.metric-subtext {
+  margin-top: 6px !important;
+  font-size: 0.76rem !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 .profile-brief {
   margin-top: 0;
   height: 240px;
@@ -378,6 +397,49 @@ button:disabled {
   padding-left: 20px;
   display: grid;
   gap: 4px;
+}
+
+.trend-chart-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.trend-chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.trend-window {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trend-delta {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.trend-delta.up {
+  color: #0f9f6e;
+}
+
+.trend-delta.down {
+  color: var(--danger);
+}
+
+.trend-chart {
+  width: 100%;
+  height: 190px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+  padding: 4px 6px 2px;
 }
 
 .bubble {

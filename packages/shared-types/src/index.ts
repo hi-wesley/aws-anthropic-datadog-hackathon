@@ -7,6 +7,27 @@ export type CreditHealthBand =
 
 export type ActionImpact = "high" | "medium" | "low";
 
+export interface HardInquiryRecord {
+  lender: string;
+  date: string;
+}
+
+export interface CreditLineRecord {
+  accountName: string;
+  limit: number;
+}
+
+export interface OldestAccountRecord {
+  accountName: string;
+  openedDate: string;
+}
+
+export interface DerogatoryMarkRecord {
+  item: string;
+  date: string;
+  status: string;
+}
+
 export interface CreditProfile {
   id: string;
   label: string;
@@ -18,6 +39,10 @@ export interface CreditProfile {
   hardInquiriesLast12Months: number;
   derogatoryMarks: number;
   notes: string[];
+  creditLineHistory?: CreditLineRecord[];
+  oldestAccountDetail?: OldestAccountRecord;
+  hardInquiryHistory?: HardInquiryRecord[];
+  derogatoryMarkHistory?: DerogatoryMarkRecord[];
 }
 
 export interface CreditAction {

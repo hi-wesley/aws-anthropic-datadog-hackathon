@@ -12,6 +12,46 @@
     "notes": [
       "Missed payments from two years ago",
       "High card utilization due to emergency expenses"
+    ],
+    "creditLineHistory": [
+      {
+        "accountName": "Citi Custom Cash",
+        "limit": 500
+      }
+    ],
+    "oldestAccountDetail": {
+      "accountName": "Citi Custom Cash",
+      "openedDate": "Apr 19, 2024"
+    },
+    "hardInquiryHistory": [
+      {
+        "lender": "Chase Freedom Unlimited",
+        "date": "Feb 14, 2026"
+      },
+      {
+        "lender": "Capital One Quicksilver",
+        "date": "Nov 02, 2025"
+      },
+      {
+        "lender": "Discover it Cash Back",
+        "date": "Aug 19, 2025"
+      },
+      {
+        "lender": "Synchrony Amazon Store Card",
+        "date": "Apr 07, 2025"
+      }
+    ],
+    "derogatoryMarkHistory": [
+      {
+        "item": "30-day late payment (Citi Custom Cash)",
+        "date": "May 12, 2024",
+        "status": "Reported"
+      },
+      {
+        "item": "Collection account (medical bill)",
+        "date": "Jan 06, 2025",
+        "status": "Open"
+      }
     ]
   },
   {
@@ -24,7 +64,44 @@
     "oldestAccountMonths": 132,
     "hardInquiriesLast12Months": 1,
     "derogatoryMarks": 0,
-    "notes": ["Stable payment behavior", "Low revolving balances"]
+    "notes": ["Stable payment behavior", "Low revolving balances"],
+    "creditLineHistory": [
+      {
+        "accountName": "Chase Freedom Unlimited",
+        "limit": 8500
+      },
+      {
+        "accountName": "Amex Blue Cash Preferred",
+        "limit": 12000
+      },
+      {
+        "accountName": "Citi Double Cash",
+        "limit": 9000
+      },
+      {
+        "accountName": "Capital One Venture",
+        "limit": 11000
+      },
+      {
+        "accountName": "Discover it Cash Back",
+        "limit": 7000
+      },
+      {
+        "accountName": "Wells Fargo Active Cash",
+        "limit": 6500
+      }
+    ],
+    "oldestAccountDetail": {
+      "accountName": "Chase Freedom Unlimited",
+      "openedDate": "Feb 03, 2015"
+    },
+    "hardInquiryHistory": [
+      {
+        "lender": "Amex Blue Cash Preferred",
+        "date": "Jul 11, 2025"
+      }
+    ],
+    "derogatoryMarkHistory": []
   },
   {
     "id": "thin-file-new",
@@ -36,7 +113,28 @@
     "oldestAccountMonths": 11,
     "hardInquiriesLast12Months": 2,
     "derogatoryMarks": 0,
-    "notes": ["First card opened less than a year ago"]
+    "notes": ["First card opened less than a year ago"],
+    "creditLineHistory": [
+      {
+        "accountName": "Discover it Student Cash Back",
+        "limit": 1500
+      }
+    ],
+    "oldestAccountDetail": {
+      "accountName": "Discover it Student Cash Back",
+      "openedDate": "Mar 15, 2025"
+    },
+    "hardInquiryHistory": [
+      {
+        "lender": "Discover it Student",
+        "date": "Jan 29, 2026"
+      },
+      {
+        "lender": "Chase Freedom Rise",
+        "date": "Jun 03, 2025"
+      }
+    ],
+    "derogatoryMarkHistory": []
   },
   {
     "id": "post-derogatory-rebuild",
@@ -48,7 +146,46 @@
     "oldestAccountMonths": 54,
     "hardInquiriesLast12Months": 3,
     "derogatoryMarks": 1,
-    "notes": ["Collection account reported last year"]
+    "notes": ["Collection account reported last year"],
+    "creditLineHistory": [
+      {
+        "accountName": "Capital One Platinum",
+        "limit": 1500
+      },
+      {
+        "accountName": "Mission Lane Visa",
+        "limit": 1200
+      },
+      {
+        "accountName": "OpenSky Secured Visa",
+        "limit": 700
+      }
+    ],
+    "oldestAccountDetail": {
+      "accountName": "Capital One Platinum",
+      "openedDate": "Aug 09, 2021"
+    },
+    "hardInquiryHistory": [
+      {
+        "lender": "Capital One Platinum",
+        "date": "Dec 08, 2025"
+      },
+      {
+        "lender": "Mission Lane Visa",
+        "date": "Sep 17, 2025"
+      },
+      {
+        "lender": "Upgrade Card",
+        "date": "May 22, 2025"
+      }
+    ],
+    "derogatoryMarkHistory": [
+      {
+        "item": "Collection account (utility bill)",
+        "date": "Nov 18, 2025",
+        "status": "Settled"
+      }
+    ]
   },
   {
     "id": "good-score-too-many-inquiries",
@@ -60,6 +197,59 @@
     "oldestAccountMonths": 74,
     "hardInquiriesLast12Months": 7,
     "derogatoryMarks": 0,
-    "notes": ["Rate shopping for auto and personal loans"]
+    "notes": ["Rate shopping for auto and personal loans"],
+    "creditLineHistory": [
+      {
+        "accountName": "Chase Sapphire Preferred",
+        "limit": 14000
+      },
+      {
+        "accountName": "Citi Custom Cash",
+        "limit": 6000
+      },
+      {
+        "accountName": "Wells Fargo Active Cash",
+        "limit": 7500
+      },
+      {
+        "accountName": "Capital One Venture",
+        "limit": 12000
+      }
+    ],
+    "oldestAccountDetail": {
+      "accountName": "Chase Sapphire Preferred",
+      "openedDate": "Dec 11, 2019"
+    },
+    "hardInquiryHistory": [
+      {
+        "lender": "Chase Sapphire Preferred",
+        "date": "Feb 04, 2026"
+      },
+      {
+        "lender": "Citi Double Cash",
+        "date": "Jan 13, 2026"
+      },
+      {
+        "lender": "Wells Fargo Active Cash",
+        "date": "Dec 01, 2025"
+      },
+      {
+        "lender": "U.S. Bank Cash+ Visa",
+        "date": "Oct 14, 2025"
+      },
+      {
+        "lender": "Amex Green",
+        "date": "Aug 28, 2025"
+      },
+      {
+        "lender": "SoFi Personal Loan",
+        "date": "Jun 16, 2025"
+      },
+      {
+        "lender": "Capital One Venture",
+        "date": "Apr 03, 2025"
+      }
+    ],
+    "derogatoryMarkHistory": []
   }
 ]
