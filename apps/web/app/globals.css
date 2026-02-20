@@ -1,0 +1,219 @@
+:root {
+  color-scheme: light;
+  --bg: #f8f4ed;
+  --bg-secondary: #fdf9f4;
+  --panel: rgba(255, 255, 255, 0.9);
+  --text: #1f1a17;
+  --muted: #5f5751;
+  --line: #dfd5c9;
+  --accent: #0a7f62;
+  --accent-soft: #d4f5ea;
+  --danger: #9f2d2d;
+  --radius: 16px;
+  --font-stack: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 10% 20%, #f1e5d5 0%, transparent 35%),
+    radial-gradient(circle at 90% 10%, #d8efe5 0%, transparent 40%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-stack);
+}
+
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  background: var(--panel);
+  backdrop-filter: blur(4px);
+}
+
+.hero {
+  background: linear-gradient(130deg, #fff6ea 0%, #e9fbf4 100%);
+}
+
+.hero h1 {
+  margin: 8px 0;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+select,
+textarea {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+.mode-toggle button,
+.row-actions button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-toggle button.active,
+.row-actions button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.profile-card {
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.profile-card h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.profile-card p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.composer {
+  display: grid;
+  gap: 10px;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-log {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.bubble {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.bubble.user {
+  background: #fff;
+}
+
+.bubble.assistant {
+  background: #f5fcf9;
+}
+
+.role {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--muted);
+}
+
+.insights h2,
+.insights h3 {
+  margin-top: 0;
+}
+
+.insights p,
+.insights li {
+  color: var(--muted);
+}
+
+.summary {
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
+.error {
+  color: var(--danger);
+  margin: 10px 0;
+}
+
+@media (max-width: 960px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}

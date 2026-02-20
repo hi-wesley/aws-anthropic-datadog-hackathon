@@ -1,0 +1,16 @@
+{
+  "name": "aws-anthropic-datadog-hackathon",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "infra/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run -w apps/web dev",
+    "dev:api": "npm run -w apps/api dev",
+    "typecheck": "npm run -ws typecheck",
+    "test": "npm run -w packages/credit-engine test"
+  }
+}

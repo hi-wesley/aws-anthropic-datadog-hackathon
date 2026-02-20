@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@credit-coach/shared-types": ["packages/shared-types/src/index.ts"],
+      "@credit-coach/credit-engine": ["packages/credit-engine/src/index.ts"],
+      "@credit-coach/prompts": ["packages/prompts/src/index.ts"]
+    }
+  }
+}

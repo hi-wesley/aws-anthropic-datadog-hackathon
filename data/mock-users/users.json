@@ -1,0 +1,65 @@
+[
+  {
+    "id": "single-line-recovery",
+    "label": "One credit line, previous mistakes, rebuilding",
+    "currentScore": 578,
+    "creditLines": 1,
+    "utilizationRatio": 0.84,
+    "onTimePaymentRate": 0.81,
+    "oldestAccountMonths": 22,
+    "hardInquiriesLast12Months": 4,
+    "derogatoryMarks": 2,
+    "notes": [
+      "Missed payments from two years ago",
+      "High card utilization due to emergency expenses"
+    ]
+  },
+  {
+    "id": "multi-line-healthy",
+    "label": "Multiple lines, good credit profile",
+    "currentScore": 774,
+    "creditLines": 6,
+    "utilizationRatio": 0.11,
+    "onTimePaymentRate": 0.99,
+    "oldestAccountMonths": 132,
+    "hardInquiriesLast12Months": 1,
+    "derogatoryMarks": 0,
+    "notes": ["Stable payment behavior", "Low revolving balances"]
+  },
+  {
+    "id": "thin-file-new",
+    "label": "Thin file, new credit user",
+    "currentScore": 645,
+    "creditLines": 1,
+    "utilizationRatio": 0.22,
+    "onTimePaymentRate": 0.97,
+    "oldestAccountMonths": 11,
+    "hardInquiriesLast12Months": 2,
+    "derogatoryMarks": 0,
+    "notes": ["First card opened less than a year ago"]
+  },
+  {
+    "id": "post-derogatory-rebuild",
+    "label": "Rebuilding after derogatory items",
+    "currentScore": 622,
+    "creditLines": 3,
+    "utilizationRatio": 0.41,
+    "onTimePaymentRate": 0.93,
+    "oldestAccountMonths": 54,
+    "hardInquiriesLast12Months": 3,
+    "derogatoryMarks": 1,
+    "notes": ["Collection account reported last year"]
+  },
+  {
+    "id": "good-score-too-many-inquiries",
+    "label": "Good score but too many recent inquiries",
+    "currentScore": 709,
+    "creditLines": 4,
+    "utilizationRatio": 0.19,
+    "onTimePaymentRate": 0.98,
+    "oldestAccountMonths": 74,
+    "hardInquiriesLast12Months": 7,
+    "derogatoryMarks": 0,
+    "notes": ["Rate shopping for auto and personal loans"]
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "title": "Credit Coach - API + LLM Overview",
+  "description": "Baseline dashboard for request health, model behavior, and voice endpoint reliability.",
+  "layout_type": "ordered",
+  "widgets": [
+    {
+      "definition": {
+        "title": "API Requests / sec",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:trace.fastify.request.hits{service:credit-coach-api}.as_rate()"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "API p95 Latency",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "p95:trace.fastify.request.duration{service:credit-coach-api}"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "HTTP Error Rate",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:trace.fastify.request.errors{service:credit-coach-api}.as_rate()"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "LLM Calls by Model",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:credit_coach.llm.calls{service:credit-coach-api} by {model}.as_count()"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "LLM Fallback Rate",
+        "type": "query_value",
+        "requests": [
+          {
+            "q": "100 * (sum:credit_coach.llm.fallback{service:credit-coach-api}.as_count() / sum:credit_coach.llm.calls{service:credit-coach-api}.as_count())"
+          }
+        ],
+        "autoscale": true,
+        "precision": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "Voice Synthesis Failures",
+        "type": "timeseries",
+        "requests": [
+          {
+            "q": "sum:credit_coach.voice.synthesis_error{service:credit-coach-api}.as_count()"
+          }
+        ]
+      }
+    }
+  ],
+  "notify_list": []
+}
