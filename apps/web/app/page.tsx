@@ -314,7 +314,7 @@ export default function HomePage() {
               <p className="summary">{report.summary}</p>
               <p>Band: {report.band}</p>
               <p>
-                Estimated range: {report.estimatedScoreRange.current} ->{" "}
+                Estimated range: {report.estimatedScoreRange.current} {"->"}{" "}
                 {report.estimatedScoreRange.conservative} to {report.estimatedScoreRange.optimistic}
               </p>
 

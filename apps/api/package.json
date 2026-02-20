@@ -9,9 +9,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@credit-coach/credit-engine": "workspace:*",
-    "@credit-coach/prompts": "workspace:*",
-    "@credit-coach/shared-types": "workspace:*",
+    "@credit-coach/credit-engine": "0.1.0",
+    "@credit-coach/prompts": "0.1.0",
+    "@credit-coach/shared-types": "0.1.0",
     "@aws-sdk/client-bedrock-runtime": "^3.759.0",
     "@aws-sdk/client-polly": "^3.759.0",
     "@fastify/cors": "^10.0.2",
