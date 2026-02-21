@@ -1,72 +1,235 @@
 {
-  "title": "Credit Coach - API + LLM Overview",
-  "description": "Baseline dashboard for request health, model behavior, and voice endpoint reliability.",
+  "title": "Credit Coach - Datadog Hackathon Dashboard",
+  "description": "Core API reliability and LLM behavior dashboard for credit-coach-api.",
   "layout_type": "ordered",
+  "template_variables": [
+    {
+      "name": "env",
+      "prefix": "env",
+      "default": "*"
+    },
+    {
+      "name": "service",
+      "prefix": "service",
+      "default": "credit-coach-api"
+    }
+  ],
   "widgets": [
     {
       "definition": {
-        "title": "API Requests / sec",
+        "title": "API p95 Latency (ms)",
         "type": "timeseries",
         "requests": [
           {
-            "q": "sum:trace.fastify.request.hits{service:credit-coach-api}.as_rate()"
-          }
-        ]
-      }
-    },
-    {
-      "definition": {
-        "title": "API p95 Latency",
-        "type": "timeseries",
-        "requests": [
-          {
-            "q": "p95:trace.fastify.request.duration{service:credit-coach-api}"
-          }
-        ]
-      }
-    },
-    {
-      "definition": {
-        "title": "HTTP Error Rate",
-        "type": "timeseries",
-        "requests": [
-          {
-            "q": "sum:trace.fastify.request.errors{service:credit-coach-api}.as_rate()"
-          }
-        ]
-      }
-    },
-    {
-      "definition": {
-        "title": "LLM Calls by Model",
-        "type": "timeseries",
-        "requests": [
-          {
-            "q": "sum:credit_coach.llm.calls{service:credit-coach-api} by {model}.as_count()"
-          }
-        ]
-      }
-    },
-    {
-      "definition": {
-        "title": "LLM Fallback Rate",
-        "type": "query_value",
-        "requests": [
-          {
-            "q": "100 * (sum:credit_coach.llm.fallback{service:credit-coach-api}.as_count() / sum:credit_coach.llm.calls{service:credit-coach-api}.as_count())"
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env api_request_completed"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "pc95",
+                  "metric": "@response_time_ms"
+                }
+              }
+            ],
+            "response_format": "timeseries",
+            "display_type": "line",
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            }
           }
         ],
-        "autoscale": true,
-        "precision": 2
+        "yaxis": {
+          "label": "ms",
+          "scale": "linear",
+          "include_zero": true
+        }
       }
     },
     {
       "definition": {
-        "title": "Voice Synthesis Failures",
+        "title": "API Error Rate (%)",
         "type": "timeseries",
         "requests": [
           {
-            "q": "sum:credit_coach.voice.synthesis_error{service:credit-coach-api}.as_count()"
+            "formulas": [
+              {
+                "formula": "100 * query2 / query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env api_request_completed"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "count"
+                }
+              },
+              {
+                "name": "query2",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env api_request_completed @is_error:true"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "count"
+                }
+              }
+            ],
+            "response_format": "timeseries"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Chat Volume (chat_request_completed)",
+        "type": "timeseries",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env chat_request_completed"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "count"
+                }
+              }
+            ],
+            "response_format": "timeseries",
+            "display_type": "bars"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Bedrock Usage Split (usedBedrock + model)",
+        "type": "query_table",
+        "has_search_bar": "auto",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env chat_request_completed"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@used_bedrock",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  },
+                  {
+                    "facet": "@bedrock_model",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "response_format": "scalar"
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "title": "Health Band + Profile Breakdown",
+        "type": "query_table",
+        "has_search_bar": "auto",
+        "requests": [
+          {
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "logs",
+                "search": {
+                  "query": "service:$service env:$env chat_request_completed"
+                },
+                "indexes": [
+                  "*"
+                ],
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@health_band",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  },
+                  {
+                    "facet": "@profile_id",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "response_format": "scalar"
           }
         ]
       }

@@ -10,6 +10,8 @@
   "scripts": {
     "dev:web": "npm run -w apps/web dev",
     "dev:api": "npm run -w apps/api dev",
+    "dd:traffic": "node observability/datadog/generate-traffic.mjs",
+    "dd:dashboard:create": "node observability/datadog/create-dashboard.mjs",
     "typecheck": "npm run -ws typecheck",
     "test": "npm run -w packages/credit-engine test"
   }

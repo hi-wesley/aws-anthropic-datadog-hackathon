@@ -1,308 +1,172 @@
-# aws-anthropic-datadog-hackathon
+https://imgur.com/a/Ozp6qG0
+
+luma.com/n84hk0l9
+
+# Credit Coach (AWS + Bedrock + Datadog)
+
+Monorepo MVP for a credit-health coaching app with:
+- A Next.js dashboard for mock personas and AI chat
+- A Fastify API that combines deterministic credit analysis with Amazon Bedrock responses
+- Datadog tracing/log hooks and dashboard automation scripts
+- AWS CDK infrastructure scaffolding
+
+## Current Repository Flow
+
+1. Select a mock credit profile in the web app.
+2. Send a chat question.
+3. API computes a deterministic credit report and asks Bedrock for a short coach response.
+4. Datadog telemetry is emitted when enabled.
+
+## Tech Stack
+
+- Node.js + npm workspaces
+- `apps/web`: Next.js 15 + React 19 + Recharts
+- `apps/api`: Fastify + AWS SDK (Bedrock) + `dd-trace`
+- `packages/credit-engine`: deterministic credit scoring/action engine
+- `packages/prompts`: system/user prompt builders
+- `packages/shared-types`: shared domain and API types
+- `infra/cdk`: AWS CDK v2 scaffold
+- `observability/datadog`: dashboard JSON + traffic/dashboard scripts
+
+## Repository Layout
+
+```text
+apps/
+  api/
+  web/
+data/
+  mock-users/users.json
+infra/
+  cdk/
+observability/
+  datadog/
+packages/
+  credit-engine/
+  prompts/
+  shared-types/
+tests/
+  scenarios.md
+```
+
+## Prerequisites
 
-​Join us for an immersive, hands-on hackathon where builders, developers, and AI enthusiasts come together to create production-ready Generative AI agents using the latest innovations from AWS, Datadog, and ecosystem partners.
+- Node.js 20+
+- npm 10+
+- AWS credentials with Bedrock model access
+- Optional: Datadog API/App keys for log forwarding and dashboard automation
 
-​This unique challenge invites participants to leverage cutting-edge tools such as Amazon Bedrock, Strands Agents, Amazon Bedrock AgentCore, Datadog MCP, and Kiro Powers, alongside select AWS Partner products, to push the boundaries of Large Language Models (LLMs), AI agent workflows, and real-world AI applications.
+## Setup
 
-​🍽️ Breakfast, lunch, dinner, and snacks will be provided.
+```bash
+npm install
+```
 
-​💡 The Challenge
-​Build a functional, production-ready Generative AI application or agent workflow with built-in observability.
+Create `.env` at the repository root and set the variables you need.
 
-​To be eligible for the prize pool, all participating teams must meet the following Core Infrastructure Requirements:
+Minimal local `.env`:
 
-​✅ Core Infrastructure Requirements
+```bash
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+```
 
-​AWS Infrastructure
-Your solution must be built and deployed using AWS services, including at least one of the following:
+Useful optional `.env` values:
 
-​Amazon Bedrock
+```bash
+# API
+PORT=4000
+LOG_LEVEL=info
+DISABLE_BEDROCK=false
 
-​Strands Agents
+# Datadog tracing/logs
+DD_TRACE_ENABLED=true
+DD_LOGS_ENABLED=true
+DD_SERVICE=credit-coach-api
+DD_ENV=dev
+DD_VERSION=0.1.0
+DD_SITE=datadoghq.com
+DD_API_KEY=
+DD_APP_KEY=
+DD_DASHBOARD_ID=
 
-​Amazon Bedrock AgentCore
+# Web/API routing
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+API_BASE_URL=http://localhost:4000
 
-​Kiro
+# Traffic script tuning
+TRAFFIC_REQUESTS=30
+TRAFFIC_DELAY_MS=150
+```
 
-​Datadog Observability
+## Run Locally
 
-​Teams must integrate Datadog observability capabilities to monitor system performance, reliability, or LLM behavior, such as:
+Terminal 1 (API):
 
-​Datadog Dashboards
+```bash
+npm run dev:api
+```
 
-​LLM Observability
+Terminal 2 (Web):
 
-​Datadog MCP
+```bash
+npm run dev:web
+```
 
-​[New!] Additional Prize Tracks
+Defaults:
+- Web: `http://localhost:3000`
+- API: `http://localhost:4000`
 
-​Additional technical tracks and challenges powered by our ecosystem partners. These tracks will feature additional technical challenges, tooling integrations, and product-focused prompts designed to help teams push their systems further. Participating ecosystem partners include:
+## API Endpoints
 
-​MiniMax
+- `GET /health`
+  - Returns service status, region/model, and Datadog flags.
+- `GET /profiles`
+  - Returns profiles from `data/mock-users/users.json`.
+- `POST /chat`
+  - Input: `{ profileId, message, responseMode?, conversationId? }`
+  - Output: advisor text, credit report, optional voice payload, metadata.
 
-​Neo4j
+## Observability (Datadog)
 
-​TestSprite
+Generate demo traffic (API must be running):
 
-​CopilotKit
+```bash
+npm run dd:traffic
+```
 
-​🏆 Prize Pool & Award Tracks
-​We are actively scaling the prize pool as new partners join. Current awards include $20K+ value in prizes, $15,000 in AWS credits, and additional partner benefits, including:
+Create or update dashboard from `observability/datadog/dashboard-credit-health.json`:
 
-​💰 Cash Prizes
+```bash
+npm run dd:dashboard:create
+```
 
-​$12,000 from MiniMax, TestSprite, and CopilotKit
+## Tests and Typechecking
 
-​If you plan to use MiniMax, please submit below form ahead of time to get free credits for hacking https://forms.gle/Fazk8r87QmudNLNd6
+Run tests:
 
-​🎯 Special Awards
+```bash
+npm test
+```
 
-​Datadog Observability Award – Meta Glasses
+Run workspace typechecks:
 
-​Neo4j Award – Neo4j cloud service credits, Bose QuietComfort Ultra Bluetooh Headphones, Wireless Headphones, and more!
+```bash
+npm run typecheck
+```
 
-​And more!
+Current status in this repository:
+- `npm test`: passing (`packages/credit-engine` vitest tests)
+- `npm run typecheck`: currently failing in `packages/credit-engine/test/index.test.ts` (ESM import extension + implicit `any`)
 
-​☁️ Cloud Credits & Partner Rewards
+## Infrastructure (CDK)
 
-​$15,000 in AWS Credits
+```bash
+npm run -w infra/cdk cdk:synth
+npm run -w infra/cdk cdk:deploy
+```
 
-​Over $10,000 in additional partner credits and benefits
+The CDK stack provisions DynamoDB, S3, API Gateway, alarms, and a Lambda placeholder handler. Deploying `apps/api` as the Lambda package is not fully wired yet.
 
-​🎁 Swag & Perks
+## License
 
-​Exclusive partner merch, AWS gear, and partner-specific perks.
-
-​🍽️ Food & Refreshments
-​A special thank you to MongoDB for generously sponsoring meals and refreshments throughout the day.
-
-​Breakfast, lunch, dinner, and light snacks will be provided for all participants. Build hard. We’ll keep you fueled.
-
-​📅 Agenda
-​9:00 – 9:30 AM — Check-in and breakfast ☕
-
-​9:30 – 11:00 AM — Partner talks and sponsor mini-workshops 🎤
-
-​11:00 AM — Team formation and hacking begins 💻
-
-​12:00 PM — Lunch 🍽️ (provided by MongoDB)
-
-​5:00 PM — Project submission deadline ⏳
-
-​5:00 – 7:00 PM — First round of judging (science fair format) 🧑‍⚖️
-
-​7:00 – 7:30 PM — Selected team presentations 🚀
-
-​7:45 – 8:00 PM — Award presentation 🏆
-
-​🧩 About the Speakers
-​🌟 Saptarshi Banerjee – Senior Solutions Architect, Gen AI & Serverless @ AWS
-🌟 Varun Jasti – Partner Solutions Architect @ AWS
-🌟 Nina C. – Technical Customer Solutions Manager II, ISV GenAI Security + Observability @ AWS
-🌟 Shashiraj Jeripotula(Raj) – Principal Partner Solutions Architect @ AWS
-🌟 Srinivas Kesanapally – Partner Solutions Architect Leader @ AWS
-🌟 Bharadwaj Tanikella – Applied AI @ Datadog
-🌟 Marius Buleandra – Technical Staff @ Anthropic
-🌟 Abhimanyu Chakrabarty – Senior Solutions Architect @ MongoDB
-🌟 Yunhao Jiao – CEO & Co-Founder @ TestSprite
-🌟 William Lyon – AI Innovation @ Neo4j
-🌟 Victor Su-Ortiz S. Ortiz – Developer Relations @ MiniMax
-🌟 Uli Barkai – Co-Founder @ CopilotKit
-🌟 Yujian Tang – Founder @ OSS4AI | GP @ Gravitational Ventures
-
-​🧑‍⚖️ Meet Our Judges
-​We’re honored to welcome an exceptional panel of operators, investors, and technical leaders across AI, infrastructure, and venture.
-
-​Nick Simha - Solutions Architect Leader @ AWS
-
-​Mickey Iqbal - Sr. Principal SA @ AWS
-
-​Sujatha Kuppuraju- Account SA @ AWS
-
-​Jon Turdiev - Senior Solutions Architect @ AWS
-
-​Varun Jasti - Solutions Architect @ AWS
-
-​Saptarshi Banerjee - Senior Solutions Architect @ AWS
-
-​Alicja Kwasniewska - AI/ML Tech Leader @ AWS
-
-​Mani Kumar Adari - Principal Software Engineer @ AWS
-
-​Avnish Kumar - Senior Engineer @ AWS Bedrock
-
-​Bharadwaj Tanikella - AI Product Leader @ Datadog
-
-​Victor Su-Ortiz - Developer Relations @ MiniMax
-
-​Allie Gu — Machine Learning Staff @ xAI
-
-​Wesley Tillu — Partner @ Section 32
-
-​Allen Smith — Managing Partner @ Musa Capital
-
-​Vignesh Ravikumar — Partner @ Sierra Ventures
-
-​Yunhao Jiao— CEO and Co-founder @ TestSprite
-
-​Uli Barkai — Co-Founder @ CopilotKit
-
-​Jeremy Adams - Senior Developer Advocate @ Neo4j
-
-​John Bohlmann - GP @ Spacefund, Founder @ Hawken AI
-
-​Mark Morgan - Member of Technical Staff at ATG (YC 25)
-
-​🧩 About the Hosts & Partners
-​Amazon Web Services (AWS)
-The world’s most comprehensive and broadly adopted cloud platform, AWS provides scalable infrastructure and advanced AI services—including Amazon Bedrock—to help teams build, deploy, and scale generative AI applications securely and efficiently.
-
-​Datadog
-Datadog is a leading monitoring and observability platform for cloud-scale applications, enabling teams to visualize, secure, and optimize modern systems—including AI- and LLM-powered workloads—with real-time insights.
-
-​Anthropic
-Anthropic is an AI safety and research company that's working to build reliable, interpretable, and steerable AI systems.
-
-MiniMax
-MiniMax is a leading AI foundation model company building multimodal large language models that power next-generation applications across text, voice, and visual intelligence. Its advanced AI systems are designed to enable scalable, human-like interaction and intelligent automation for global developers and enterprises.
-
-​Neo4j
-Neo4j is the world’s leading graph database platform, enabling developers to build intelligent, connected applications by modeling and querying data as graphs. It is widely used in AI, knowledge graphs, recommendation systems, fraud detection, and agent-based applications where understanding relationships is critical.
-
-​TestSprite
-TestSprite is an AI-powered testing and quality engineering platform that helps teams ensure the reliability, robustness, and performance of modern software systems at scale.
-
-​CopilotKit
-CopilotKit is the Agentic Application Platform—an open-source framework with cloud and self-hosted options—for building AI-powered, user-facing agentic applications with speed and flexibility.
-
-​MongoDB
-MongoDB is the leading developer data platform, offering flexible and scalable databases purpose-built for modern, data-intensive, and AI-powered applications, trusted by developers worldwide.
-
-​
-B.E.L.L.E Community
-B.E.L.L.E is a global community in technology, AI, and entrepreneurship, dedicated to breaking boundaries and building futures through events, education, and cross-industry collaboration. Our impact: Connected 25,000+ people, supported 600+ startups, and collectively helped raise $1B in funding.
-
-​OSS4AI
-OSS4AI is an open-source community advancing AI innovation through collaboration, shared tools, and practical knowledge, with a focus on real-world adoption and open ecosystems.
-
-​📍 Venue Partner
-​Special thanks to AWS Startup Loft San Francisco
-for providing their beautiful SF space and supporting the builder community.
-
-​📜 Terms, Privacy & Code of Conduct
-​By registering for this event, you agree to:
-
-​Datadog’s Privacy Policy and Cookie Policy
-
-​Sharing your registration information with Datadog and AWS
-
-​Complying with the AWS Community Codes of Conduct
-
-​The AWS Event Terms and Conditions
-
-​MongoDB’s Terms and Conditions and Privacy Policy
-
-​Government Attendees Disclaimer
-
-​In accordance with AWS’s Anti-bribery and Gifts & Entertainment Policy, government employee participants are required to provide written confirmation that prize acceptance complies with their organization’s internal policies and applicable local laws.
-
-​📸 Photo & Video Disclaimer
-​By attending this event, participants grant Datadog, AWS, B.E.L.L.E Community, and other event hosts and partners the irrevocable right to use any photographs, videos, or audio recordings taken during the event for promotional, marketing, or documentation purposes worldwide, without compensation.
-
-​All materials are the exclusive property of B.E.L.L.E Community, and participants release the hosts from any related claims.
-
-​📬 Email Subscription Notice
-​By attending or participating in this event, you acknowledge and consent to receiving emails from Datadog, AWS, B.E.L.L.E Community, and other event hosts and partners regarding future events, updates, and related information.
-
-​We respect your privacy, and you may unsubscribe at any time in accordance with applicable privacy laws.
-
-Blasts
-Lenka Huang
-Today, 11:25 AM
-​This is the link to get your AWS account for the hackathon:
-
-​https://catalog.us-east-1.prod.workshops.aws/join?access-code=1bb6-09d19b-8e
-
-​For setting up your Kiro account, go to this page for instructions:
-
-​https://kiro.dev/docs/getting-started/installation/
-
-​
-And if you need Datadog MCP account, please come to the front and find us. (It's limited to 1 per team)
-
-Lenka Huang
-Today, 11:19 AM
-​PLEASE JOIN DISCORD:
-
-https://discord.gg/aMG8tdKq
-
-Lenka Huang
-Today, 9:10 AM
-​Good morning everyone!
-
-Please use the main entrance at market street and then take the elevator to 2nd floor.
-
-Wifi information:
-Network: Guest
-Password: BrokenWires@@2019
-
-Reminders -
-Please join the discord channel : https://discord.gg/aMG8tdKq
-
-if you plan to use MiniMax today, apply for free credits by filling out the form here:
-https://forms.gle/Fazk8r87QmudNLNd6
-
-See you all soon!
-
-
-
-
-Lenka Huang
-Yesterday, 1:41 PM
-AWS x Datadog GenAI Hackathon — Know Before You Go
-​We’re excited to welcome you tomorrow!
-
-​📍 Location: AWS Builder Loft, 525 Market St, San Francisco 🕘 Time: 9:00 AM – 8:00 PM (Check-in starts at 9:00 AM)
-
-​⸻
-
-​What to Expect
-
-​You’ll be building production-ready AI systems alongside hundreds of founders, engineers, and AI leaders from startups, enterprises, and research institutions.
-
-​Judges include venture partners, AWS technical leaders, and operators across the AI ecosystem.
-
-​⸻
-
-​Prize Eligibility Requirements
-
-​To qualify for prizes, your project must:
-
-​•⁠ ⁠Use AWS infrastructure (Amazon Bedrock) •⁠ ⁠Integrate Datadog observability tools •⁠ ⁠Deliver a live, working demo
-
-​Prize pool: $35K+ in cash, AWS credits, partner credits, and sponsor awards from Neo4j, Minimax, TestSprite, and CopilotKit.
-
-​⸻
-
-​Important Reminders
-
-​•⁠ ⁠Breakfast, lunch, dinner, and snacks provided (thank you, MongoDB!)
-
-​•⁠ ⁠Required to join the Discord for day-of updates
-
-​https://discord.gg/aMG8tdKq
-
-•⁠ ⁠Bring your laptop + charger
-•⁠ ⁠Public transit recommended (limited parking)
-•⁠ ⁠Using MiniMax?
-Apply for free credits here: https://forms.gle/Fazk8r87QmudNLNd6
-
-​⸻
-
-​Come ready to build and connect.
-
-​See you at 9:00 AM.
-
-Location
-AWS Builder Loft
-525 Market St, San Francisco, CA 94105, USA
+MIT (`LICENSE`).

@@ -1,11 +1,32 @@
-import "dotenv/config";
+import { config as loadEnv } from "dotenv";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import tracer from "dd-trace";
 
-if (process.env.DD_TRACE_ENABLED === "true") {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load repo-root .env no matter where the workspace command is executed from.
+loadEnv({ path: resolve(__dirname, "../../../.env") });
+// Fallback to process cwd .env (if present) without overriding existing values.
+loadEnv();
+
+const datadogService = process.env.DD_SERVICE ?? "credit-coach-api";
+const datadogEnv = process.env.DD_ENV ?? "dev";
+const datadogVersion = process.env.DD_VERSION ?? "0.1.0";
+const datadogSite = process.env.DD_SITE ?? "datadoghq.com";
+const datadogTraceEnabled = process.env.DD_TRACE_ENABLED !== "false";
+const datadogLogsEnabled =
+  process.env.DD_LOGS_ENABLED === "true" &&
+  typeof process.env.DD_API_KEY === "string" &&
+  process.env.DD_API_KEY.length > 0;
+
+if (datadogTraceEnabled) {
   tracer.init({
-    service: process.env.DD_SERVICE ?? "credit-coach-api",
-    env: process.env.DD_ENV ?? "dev",
-    version: process.env.DD_VERSION ?? "0.1.0"
+    service: datadogService,
+    env: datadogEnv,
+    version: datadogVersion,
+    logInjection: true
   });
 }
 
@@ -40,6 +61,16 @@ const app = Fastify({
 
 await app.register(cors, {
   origin: true
+});
+
+app.addHook("onResponse", async (request, reply) => {
+  void sendDatadogLog("api_request_completed", {
+    route: request.url,
+    method: request.method,
+    status_code: reply.statusCode,
+    response_time_ms: Number(reply.elapsedTime.toFixed(2)),
+    is_error: reply.statusCode >= 500
+  });
 });
 
 const region = process.env.AWS_REGION ?? "us-east-1";
@@ -84,7 +115,13 @@ app.get("/health", async () => {
     timestamp: new Date().toISOString(),
     region,
     bedrockModelId,
-    datadogTraceEnabled: process.env.DD_TRACE_ENABLED === "true"
+    datadogTraceEnabled,
+    datadogLogsEnabled,
+    datadog: {
+      service: datadogService,
+      env: datadogEnv,
+      version: datadogVersion
+    }
   };
 });
 
@@ -138,11 +175,18 @@ app.post("/chat", async (request, reply) => {
   request.log.info(
     {
       profileId,
+      profile_id: profileId,
       conversationId: advisor.conversationId,
+      conversation_id: advisor.conversationId,
       responseMode,
+      response_mode: responseMode,
       usedBedrock: advisor.usedBedrock,
+      used_bedrock: advisor.usedBedrock,
       profileContextIncluded: advisor.profileContextIncluded,
+      profile_context_included: advisor.profileContextIncluded,
       healthBand: report.band,
+      health_band: report.band,
+      bedrock_model: bedrockModelId,
       datadog: {
         llm_provider: "aws.bedrock",
         model: bedrockModelId,
@@ -151,6 +195,27 @@ app.post("/chat", async (request, reply) => {
     },
     "chat_request_completed"
   );
+
+  void sendDatadogLog("chat_request_completed", {
+    profileId,
+    profile_id: profileId,
+    conversationId: advisor.conversationId,
+    conversation_id: advisor.conversationId,
+    responseMode,
+    response_mode: responseMode,
+    usedBedrock: advisor.usedBedrock,
+    used_bedrock: advisor.usedBedrock,
+    profileContextIncluded: advisor.profileContextIncluded,
+    profile_context_included: advisor.profileContextIncluded,
+    healthBand: report.band,
+    health_band: report.band,
+    bedrock_model: bedrockModelId,
+    datadog: {
+      llm_provider: "aws.bedrock",
+      model: bedrockModelId,
+      profile_id: profileId
+    }
+  });
 
   return response;
 });
@@ -188,6 +253,56 @@ app.post("/voice/synthesize", async (request, reply) => {
 async function loadProfiles(): Promise<CreditProfile[]> {
   const raw = await readFile(mockUsersPath, "utf8");
   return JSON.parse(raw) as CreditProfile[];
+}
+
+async function sendDatadogLog(
+  message: string,
+  attributes: Record<string, unknown>
+): Promise<void> {
+  if (!datadogLogsEnabled) {
+    return;
+  }
+
+  const apiKey = process.env.DD_API_KEY;
+  if (!apiKey) {
+    return;
+  }
+
+  const logPayload = {
+    ddsource: "nodejs",
+    service: datadogService,
+    status: "info",
+    message,
+    ddtags: `env:${datadogEnv},service:${datadogService}`,
+    ...attributes
+  };
+
+  try {
+    const response = await fetch(`https://http-intake.logs.${datadogSite}/api/v2/logs`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "DD-API-KEY": apiKey
+      },
+      body: JSON.stringify([logPayload])
+    });
+
+    if (!response.ok) {
+      app.log.warn(
+        {
+          status: response.status
+        },
+        "datadog_log_forward_failed"
+      );
+    }
+  } catch (error) {
+    app.log.warn(
+      {
+        err: error
+      },
+      "datadog_log_forward_failed"
+    );
+  }
 }
 
 function pruneExpiredConversations(nowMs: number): void {
@@ -329,6 +444,9 @@ async function generateAdvisorReply({
       },
       "bedrock_converse_failed"
     );
+    void sendDatadogLog("bedrock_converse_failed", {
+      model: bedrockModelId
+    });
 
     appendConversationTurn(session, userPrompt, fallback);
     return {
@@ -372,6 +490,7 @@ async function synthesizeSpeech(text: string): Promise<string | undefined> {
     return await audioStreamToBase64(response);
   } catch (error) {
     app.log.warn({ err: error }, "polly_synthesis_failed");
+    void sendDatadogLog("polly_synthesis_failed", {});
     return undefined;
   }
 }
